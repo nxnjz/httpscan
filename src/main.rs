@@ -1,6 +1,7 @@
 use clap::{App, Arg};
 use reqwest::blocking::{Client, ClientBuilder};
 use reqwest::header;
+use reqwest::Proxy;
 use reqwest::Url;
 use scraper::Html;
 use scraper::Selector;
@@ -24,7 +25,6 @@ fn thread(client: Client, mut urls: Vec<String>) {
     for urlstr in urls.drain(..) {
         let url = Url::parse(&urlstr);
         if let Ok(url) = url {
-            println!("{}", urlstr);
             let r = client.get(url).send();
             let mut results = HashMap::new();
             results.insert("url", urlstr);
@@ -65,6 +65,20 @@ fn main() {
                 .takes_value(true)
                 .default_value("20"),
         )
+        .arg(
+            Arg::with_name("proxy")
+                .short("x")
+                .long("proxy")
+                .help("Proxy URL")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("proxy_auth")
+                .short("U")
+                .long("proxy-auth")
+                .help("Proxy authentication as username:password")
+                .takes_value(true),
+        )
         .get_matches();
 
     let timeout: u64 = matches.value_of("timeout").unwrap().parse().unwrap();
@@ -76,12 +90,21 @@ fn main() {
         header::CONNECTION,
         header::HeaderValue::from_static("close"),
     );
-    let client = ClientBuilder::new()
+    let mut client = ClientBuilder::new()
         .timeout(Duration::from_millis(timeout))
         .danger_accept_invalid_certs(true)
-        .default_headers(headers)
-        .build()
-        .unwrap();
+        .default_headers(headers);
+
+    if let Some(pxy_url) = matches.value_of("proxy") {
+        let mut proxy = Proxy::all(pxy_url).unwrap();
+        if let Some(pxy_auth) = matches.value_of("proxy_auth") {
+            let u = pxy_auth.split(':').nth(0).expect("invalid proxy auth");
+            let p = pxy_auth.split(':').nth(1).expect("invalid proxy auth");
+            proxy = proxy.basic_auth(u, p);
+        }
+        client = client.proxy(proxy);
+    }
+    let client = client.build().unwrap();
 
     let stdin = std::io::stdin();
     let mut urls = stdin
