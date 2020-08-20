@@ -25,21 +25,28 @@ fn thread(client: Client, mut urls: Vec<String>) {
     for urlstr in urls.drain(..) {
         let url = Url::parse(&urlstr);
         if let Ok(url) = url {
-            let r = client.get(url).send();
+            let r = client.get(url.clone()).send();
             let mut results = HashMap::new();
             results.insert("url", urlstr);
-            if let Ok(resp) = r {
-                results.insert("success", "true".to_owned());
-                results.insert("status_code", resp.status().as_str().to_owned());
-                results.insert("final_url", resp.url().to_string());
-                if let Ok(text) = resp.text() {
-                    results.insert("response_length", text.len().to_string());
-                    results.insert("html_title", html_title(&text).unwrap_or("".to_owned()));
+            let host = url.host_str();
+            if let Some(host) = host {
+                results.insert("fqdn", host.to_owned());
+                if let Ok(resp) = r {
+                    results.insert("success", "true".to_owned());
+                    results.insert("status_code", resp.status().as_str().to_owned());
+                    results.insert("final_url", resp.url().to_string());
+                    if let Ok(text) = resp.text() {
+                        results.insert("response_length", text.len().to_string());
+                        results.insert("html_title", html_title(&text).unwrap_or("".to_owned()));
+                    } else {
+                        results.insert("response_length", "0".to_string());
+                        results.insert("html_title", "".to_owned());
+                    }
+                } else {
+                    results.insert("success", "false".to_owned());
                 }
-            } else {
-                results.insert("success", "false".to_owned());
+                println!("{}", serde_json::to_string(&results).unwrap());
             }
-            println!("{}", serde_json::to_string(&results).unwrap());
         }
     }
 }
