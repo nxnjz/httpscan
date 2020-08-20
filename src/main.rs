@@ -133,5 +133,4 @@ fn main() {
     for handle in handles.drain(..) {
         handle.join();
     }
-    println!("done");
 }
