@@ -5,13 +5,9 @@ use reqwest::Proxy;
 use reqwest::Url;
 use scraper::Html;
 use scraper::Selector;
-use serde_json;
+use serde_json::{self, json, Map, Value};
 
-use std::collections::HashMap;
-use std::fs::OpenOptions;
 use std::io::BufRead;
-use std::io::Read;
-use std::io::Stdin;
 use std::time::Duration;
 
 fn html_title(html: &str) -> Option<String> {
@@ -26,28 +22,31 @@ fn thread(client: Client, mut urls: Vec<String>) {
         let url = Url::parse(&urlstr);
         if let Ok(url) = url {
             let r = client.get(url.clone()).send();
-            let mut results = HashMap::new();
-            results.insert("url", urlstr);
+            let mut results = Map::new();
+            results.insert("url".to_owned(), json!(urlstr));
             let host = url.host_str();
             if let Some(host) = host {
-                results.insert("fqdn", host.to_owned());
+                results.insert("fqdn".to_owned(), json!(host));
                 if let Ok(resp) = r {
-                    results.insert("success", "1".to_owned());
-                    results.insert("status_code", resp.status().as_str().to_owned());
-                    results.insert("final_url", resp.url().to_string());
+                    results.insert("success".to_owned(), json!(1));
+                    results.insert("status_code".to_owned(), json!(resp.status().as_u16()));
+                    results.insert("final_url".to_owned(), json!(resp.url().to_string()));
                     if let Ok(text) = resp.text() {
-                        results.insert("response_length", text.len().to_string());
-                        results.insert("html_title", html_title(&text).unwrap_or("".to_owned()));
+                        results.insert("response_length".to_owned(), json!(text.len()));
+                        results.insert(
+                            "html_title".to_owned(),
+                            json!(html_title(&text).unwrap_or("".to_owned())),
+                        );
                     } else {
-                        results.insert("response_length", "NULL".to_string());
-                        results.insert("html_title", "NULL".to_owned());
+                        results.insert("response_length".to_owned(), Value::Null);
+                        results.insert("html_title".to_owned(), Value::Null);
                     }
                 } else {
-                    results.insert("success", "0".to_owned());
-                    results.insert("status_code", "NULL".to_owned());
-                    results.insert("final_url", "NULL".to_owned());
-                    results.insert("response_length", "NULL".to_string());
-                    results.insert("html_title", "NULL".to_owned());
+                    results.insert("success".to_owned(), Value::Null);
+                    results.insert("status_code".to_owned(), Value::Null);
+                    results.insert("final_url".to_owned(), Value::Null);
+                    results.insert("response_length".to_owned(), Value::Null);
+                    results.insert("html_title".to_owned(), Value::Null);
                 }
                 println!("{}", serde_json::to_string(&results).unwrap());
             }
@@ -136,11 +135,12 @@ fn main() {
         }
     }
     let mut handles = Vec::new();
-    for i in 0..threads {
+    for _ in 0..threads {
         let urls = urls_split.pop().unwrap();
         let client = client.clone();
         handles.push(std::thread::spawn(move || thread(client, urls)));
     }
+    #[allow(unused_must_use)]
     for handle in handles.drain(..) {
         handle.join();
     }
